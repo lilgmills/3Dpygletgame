@@ -1,17 +1,18 @@
 from noise import pnoise2
 import numpy as np
 from math import floor, ceil
+import random
 
 def perlin_array(shape = (1200, 600), amplitude = 1,
-			scale = 160,octaves = 5,
-                        persistence = 0.73,
-                        lacunarity= 2.3, 
-			seed = None):
+			scale = random.randint(30, 210),octaves = random.randint(3, 5),
+                        persistence = random.random()*.35 +.25,
+                        lacunarity= random.random()*2 + 1.5, 
+			seed = None, norm = "standard"):
 
-    if not seed:
 
-        seed = np.random.randint(0, 100)
-        print("seed was {}".format(seed))
+
+    seed = np.random.randint(0, 100)
+    print("seed was se{}_sc{}_o{}_p{}_L{}".format(seed, scale, octaves, round(persistence,2), round(lacunarity, 1)))
 
     arr = np.zeros(shape)
     for i in range(shape[0]):
@@ -24,34 +25,25 @@ def perlin_array(shape = (1200, 600), amplitude = 1,
                                         repeatx=1024,
                                         repeaty=1024,
                                         base=seed)
+
     max_arr = np.max(arr)
     min_arr = np.min(arr)
-    norm_me = lambda x: floor(((x-min_arr)/(max_arr - min_arr))* 3*amplitude)/3
-    norm_me = np.vectorize(norm_me)
-    arr = norm_me(arr)
+        
+    if norm == "standard":
+        
+        norm = lambda x: (x-min_arr)/(max_arr - min_arr)*amplitude
+        
+
+    if norm == "ziggurat":
+        norm = lambda x: floor((x-min_arr)/(max_arr - min_arr)*amplitude) -0.1
+
+    if norm == "flatland":
+        norm = lambda x: floor((x-min_arr)/(max_arr - min_arr)*2*amplitude)/2 -0.1
+
+    norm = np.vectorize(norm)
+    arr = norm(arr)
     return arr
 
-if __name__ == "__name__":
-    arr = perlin_array()
-
-    filter = perlin_array(shape = (1200,600),
-                          scale = 800, octaves = 3,
-                          persistence = 0.8,
-                          lacunarity = 1)
-
-    with open("tile_codes/digital_codes.txt", "w+") as f:
-        for line_i in range (arr.shape[0]):
-            for perlin_val_j in range(arr.shape[1]):
-                perlin_val = arr[line_i, perlin_val_j]
-                
-                norm = lambda p_v: max(floor(p_v*5),0)            
-                
-                
-                perlin_filter = filter[line_i, perlin_val_j]
-
-                perlin_filter = perlin_val * (6*perlin_filter**5 - 15*perlin_filter**4 + 10* perlin_filter**3)*2
-
-                perlin_filter = norm(perlin_filter)
-                
-                f.write(str(perlin_filter)+",")
-            f.write("\n")
+if __name__ == "__main__":
+    pass
+    
