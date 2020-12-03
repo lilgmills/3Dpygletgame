@@ -30,12 +30,12 @@ sprite_matrix = [[sprite_file(x) for x in [9, 10, 11, 10]],
                  [sprite_file(x) for x in [3, 4, 5, 4]],
                  [sprite_file(x) for x in [0, 1, 2, 1]]]
 
-map_size = (200, 450)
+map_size = (300, 450)
 
 render_mode = "standard"
 
-fov = 45
-camera_lookdown_angle = 35
+fov = 54
+camera_lookdown_angle = 20
 camera_headroom = 5
 buffer_dist = 0.5 # creates a stable range of z values where the camra or player model does not need to be moved
 camera_vel = .115
@@ -44,7 +44,7 @@ camera_distance = camera_altitude/math.tan(camera_lookdown_angle/180*math.pi)
 
 sea_level = 0
 
-player_start_pos = (100, 300, camera_altitude)
+player_start_pos = (55, 10, camera_altitude)
 
 SQRT2 = math.sqrt(2)
 print(SQRT2)
@@ -110,20 +110,15 @@ class Model2:
     def real_altitude_norm(self):
         for i, row in enumerate(self.perl_array):
             for j, zij in enumerate(row):
-                pass
+                self.perl_array[i][j] = self.perl_array[i][j] - self.depth
 
     def deep_water_norm(self):
         for i, row in enumerate(self.perl_array):
             for j, zij in enumerate(row):
-                if -self.depth + zij < -0.5:
-                    self.perl_array[i][j] = -0.61+self.depth
-                elif -self.depth + zij < -0.2:
-                    self.perl_array[i][j] = -0.4+self.depth
-
-    def flatten_shore_norm(self):
-        for i, row in enumerate(self.perl_array):
-            for j, zij in enumerate(row):
-                pass
+                if zij < -0.5:
+                    self.perl_array[i][j] = -0.61  #sorrys
+                elif zij < -0.2:
+                    self.perl_array[i][j] = -0.4
                     
                     
                     
@@ -131,17 +126,13 @@ class Model2:
     def __init__(self):
         self.batch = pyglet.graphics.Batch()
 
-        #self.water_tex_file = "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python38\\Environment\\pygame-folder\\data\\sprites\\sprite workfile\\resize60\\water-files\\water-plain-0.png"
-                                        
-        #self.myTexture = self.get_texture(self.water_tex_file)
-
         model_shape = map_size
 
         self.height = 10
-        self.depth = 10
+        self.depth = 5
         self.amplitude = self.height + self.depth
 
-        x, y, z = 0,0,-self.depth
+        x, y, z = 0,0,0
         
         ix, iy = int(x), int(y)
         iX, iY = ix + model_shape[0], iy+model_shape[1]
@@ -156,9 +147,9 @@ class Model2:
                                        lacunarity = 3.5,
                                        norm = render_mode)
 
-        
-        self.flatten_shore_norm()
-        self.deep_water_norm()
+        self.real_altitude_norm()
+        #self.flatten_shore_norm()
+        #self.deep_water_norm()
             
         s, t = 0.0, 0.0
         S, T = 1.0, 1.0
@@ -181,7 +172,7 @@ class Model2:
                 Z4 = self.perl_array[I+1][J]
 
                 #shaders
-                rednorm = lambda red, z1, z2: red - 5*(z1-z2)**2
+                rednorm = lambda red, z1, z2: red - 10*(z1-z2)
                 greenorm = lambda green, z1, z2: green-34*(z1-z2)
                 bluenorm = lambda blue, z1, z2: blue-5*(z1-z2)
 
@@ -232,20 +223,24 @@ class Model:
     def __init__(self):
         self.batch = pyglet.graphics.Batch()
 
-        self.water_tex_file = "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python38\\Environment\\pygame-folder\\data\\sprites\\sprite workfile\\resize60\\water-files\\water-plain-0.png"
+        self.water_tex_file = "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python38\\Environment\\perlin noise\\0.txt"
                                         
         x, y, z = -map_size[0],-map_size[1],sea_level
         X, Y, Z = x+3*map_size[0], y+3*map_size[1], z
-        self.myTexture = self.get_texture(self.water_tex_file)
+        #self.myTexture = self.get_texture(self.water_tex_file)
 
         s, t = 0.0, 0.0
         S, T = 1.0, 1.0
         tex_coords = ('t2f', [s, t, S, t, S, T, s, T])
 
-        color_coords = ('c3f', [0,0,1] + [1, 1, 1]*3)
+        color_coords = ('c3f', [0.2,0.1,0.88]*2 + [1,1,1]*2)
 
-        self.batch.add(4, GL_QUADS, self.myTexture, ('v3f', (x, y, z, X, y, z, X, Y, z, x, Y, z)),
+        self.batch.add(4, GL_QUADS, None, ('v3f', (x, y, z, X, y, z, X, Y, z, x, Y, z)),
                        color_coords)
+
+    def get_int_array_from_file(self, file):
+        data_file = pyglet.resource.file(file)
+        return data_file
          
     def draw(self):
         self.batch.draw()
@@ -260,28 +255,6 @@ class Window(pyglet.window.Window):
         self.Projection()
         gluPerspective(fov,self.width/self.height,0.05, 1000) #min and max render distance
         self.Model()
-
-    def too_low(self, z, blob_h):
-        return (z < blob_h - self.model2.depth + camera_headroom)
-    def too_high(self, z, blob_h):
-        return (z - buffer_dist > max(camera_altitude, blob_h -self.model2.depth + camera_headroom))
-
-    
-    def set_player_on_land(self):
-        ix, iy, z = int(self.player.world_coords[0]), int(self.player.world_coords[1]), self.player.world_coords[2]
-        try: blob_h = self.model2.perl_array[ix][iy]
-        except: return
-        
-        dz = 0.02
-
-        if self.too_low(z, blob_h):
-
-            self.player.position[2] = (blob_h - self.model2.depth + camera_headroom - self.player.world_coords[2])
-            self.player.world_coords[2] = self.player.world_coords[2] + self.player.position[2]
-
-        elif self.too_high(z, blob_h):
-            self.player.position[2] = (blob_h - self.model2.depth + camera_headroom - self.player.world_coords[2])/3
-            self.player.world_coords[2] = self.player.world_coords[2] + self.player.position[2]
 
     def calculate_interpolation(self, x, y):
 
@@ -303,13 +276,14 @@ class Window(pyglet.window.Window):
         dx = x - ix
         dy = y - iy
 
-        foot_z = blob_hxy - self.model2.depth + f_x*dx + f_y*dy
-
-        return foot_z
+        return f_x, f_y, dx, dy, blob_hxy
 
     def set_player_model_on_land(self):
-        left_foot_z = self.calculate_interpolation(self.player.player_model.x, self.player.player_model.y)
-        right_foot_z = self.calculate_interpolation(self.player.player_model.x + 1, self.player.player_model.y)
+        f_x1, f_y1, dx1, dy1, z = self.calculate_interpolation(self.player.player_model.x, self.player.player_model.y)
+        f_x2, f_y2, dx2, dy2, z = self.calculate_interpolation(self.player.player_model.x + 1, self.player.player_model.y)
+
+        left_foot_z = f_x1*dx1 + f_y1*dy1 + z
+        right_foot_z = f_x1*dx2 + f_y1*dy2 + z #use different dx an dy for left foot but same derivatives to hopefully reduce bounce
 
         self.player.player_model.z = max(left_foot_z, right_foot_z, self.player.player_model.swim_cutoff)
 
