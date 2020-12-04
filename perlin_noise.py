@@ -4,7 +4,7 @@ from math import floor, ceil
 import random
 
 def perlin_array(shape = (1200, 600), amplitude = 1,
-			scale = random.randint(30, 210),octaves = random.randint(3, 5),
+			scale = 30,octaves = random.randint(3, 5),
                         persistence = random.random()*.35 +.25,
                         lacunarity= random.random()*2 + 1.5, 
 			seed = None, norm = "standard"):
@@ -28,6 +28,9 @@ def perlin_array(shape = (1200, 600), amplitude = 1,
 
     max_arr = np.max(arr)
     min_arr = np.min(arr)
+
+    if norm == "normalized":
+        norm = lambda x: (x-min_arr)/(max_arr - min_arr)
         
     if norm == "standard":
         
@@ -39,6 +42,19 @@ def perlin_array(shape = (1200, 600), amplitude = 1,
 
     if norm == "flatland":
         norm = lambda x: floor((x-min_arr)/(max_arr - min_arr)*2*amplitude)/2 -0.1
+
+    if norm == "binary":
+        norm = lambda x: int((x-min_arr)/(max_arr - min_arr) +0.5)
+
+    if norm == "ternary":
+        norm = lambda x: int((x-min_arr)/(max_arr - min_arr)*3)
+
+    if norm == "grade8":
+        norm = lambda x: int((x-min_arr)/(max_arr - min_arr)*8)
+    if norm == "grade20":
+        norm = lambda x: int((x-min_arr)/(max_arr - min_arr)*20)
+
+        
 
     norm = np.vectorize(norm)
     arr = norm(arr)

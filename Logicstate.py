@@ -30,21 +30,26 @@ sprite_matrix = [[sprite_file(x) for x in [9, 10, 11, 10]],
                  [sprite_file(x) for x in [3, 4, 5, 4]],
                  [sprite_file(x) for x in [0, 1, 2, 1]]]
 
-map_size = (300, 450)
+map_size = (550, 550)
+
+base_grey = (200,200,200)
+sand_color = (240,230,140)
+grass_green = (37.6, 150.2, 22)
+dirt_color = (210,105,30)
 
 render_mode = "standard"
 
-fov = 54
-camera_lookdown_angle = 20
+fov = 75
+camera_lookdown_angle = 25
 camera_headroom = 5
 buffer_dist = 0.5 # creates a stable range of z values where the camra or player model does not need to be moved
 camera_vel = .115
 camera_altitude = 20
 camera_distance = camera_altitude/math.tan(camera_lookdown_angle/180*math.pi)
 
-sea_level = 0
+sea_level = 2
 
-player_start_pos = (55, 10, camera_altitude)
+player_start_pos = (.5*map_size[0], .33*map_size[1], camera_altitude)
 
 SQRT2 = math.sqrt(2)
 print(SQRT2)
@@ -112,80 +117,85 @@ class Model2:
             for j, zij in enumerate(row):
                 self.perl_array[i][j] = self.perl_array[i][j] - self.depth
 
+    def height_mask_norm(self):
+        high_perl_array = perlin_array((len(self.X_range)+1,
+                                        len(self.Y_range)+1),
+                                        amplitude=self.amplitude,
+                                        scale = self.model_shape[0]/4,
+                                        persistence = 0.2,
+                                        lacunarity = 1.6,
+                                        norm = "normalized")
+
+        for i, row in enumerate(self.perl_array):
+            for j, zij in enumerate(row):
+                if self.perl_array[i][j] > 0:
+                    self.perl_array[i][j] = self.perl_array[i][j]*high_perl_array[i][j]
+        
+
+        
+
     def deep_water_norm(self):
         for i, row in enumerate(self.perl_array):
             for j, zij in enumerate(row):
-                if zij < -0.5:
-                    self.perl_array[i][j] = -0.61  #sorrys
-                elif zij < -0.2:
-                    self.perl_array[i][j] = -0.4
-                    
-                    
-                    
+                if zij < -0.2:
+                    self.perl_array[i][j] = -1  #sorrys
+                elif zij < 0:
+                    self.perl_array[i][j] = -0.6
+
+    def flatten_world_into_island(self):
+        island_norm = lambda x, y: math.exp(-((x - self.model_shape[0]/2))**2/(self.model_shape[0]/3)**2 -((y - self.model_shape[1]/2))**2/(self.model_shape[0]/3)**2 )
+        for i,row in enumerate(self.perl_array):
+            for j, z in enumerate(row):
+                if self.perl_array[i][j] > 0 :
+                    self.perl_array[i][j] = self.perl_array[i][j]*island_norm(i,j) - 2
+
+    def lerp(self, x, y, index, grades):
+        return (x*index + (y)*(grades-index))/grades
+
+    def create_world_vertex_color(self):
+
+        pass
+
+    def color_vertices_on_quad(self, i, j, I, J, Z_list):
+
+        Zij, ZIj, ZiJ, ZIJ, Zi3j, Zi3J = Z_list
     
-    def __init__(self):
-        self.batch = pyglet.graphics.Batch()
+        color = base_grey
+                    
+        rednorm = lambda red, z1, z2: red - 13*(z1-z2)
+        greenorm = lambda green, z1, z2: green-12*(z1-z2)
+        bluenorm = lambda blue, z1, z2: blue-12*(z1-z2)
 
-        model_shape = map_size
+        color_floats = lambda code: [cc/255 for cc in code]
 
-        self.height = 10
-        self.depth = 5
-        self.amplitude = self.height + self.depth
+        norm = lambda r,g,b, z1, z2: color_floats([rednorm(r, z1, z2), greenorm(g, z1, z2), bluenorm(b, z1, z2)])
 
-        x, y, z = 0,0,0
+        color1, color2, color3, color4 = base_grey, base_grey, base_grey, base_grey
+        color_code_ij = norm(*color1, Zij, ZIj) #light yellow with shader
+        color_code_Ij = norm(*color2, ZIj, Zi3j)
+        color_code_iJ = norm(*color3, ZiJ, ZIJ)
+        color_code_IJ = norm(*color4, ZIJ, Zi3J)
+
+        return color_code_ij, color_code_Ij, color_code_iJ, color_code_IJ
         
-        ix, iy = int(x), int(y)
-        iX, iY = ix + model_shape[0], iy+model_shape[1]
-        
-        self.X_range = range(ix,iX)
-        self.Y_range = range(iy,iY)
-
-        self.perl_array = perlin_array((len(self.X_range)+1,
-                                        len(self.Y_range)+1),
-                                       amplitude=self.amplitude,
-                                       persistence = 0.3,
-                                       lacunarity = 3.5,
-                                       norm = render_mode)
-
-        self.real_altitude_norm()
-        #self.flatten_shore_norm()
-        #self.deep_water_norm()
+    def create_world_model(self, x, y, z):
+        for i, I in zip(range(self.model_shape[0]), range(1,self.model_shape[0])):
             
-        s, t = 0.0, 0.0
-        S, T = 1.0, 1.0
-        tex_coords = ('t2f', [s, t, S, t, S, T, s, T])
+            for j, J in zip(range(self.model_shape[1]), range(1,self.model_shape[1])):
 
-        
-        
-        for i, I in zip(range(model_shape[0]), range(1,model_shape[0])):
-            vertex_color_row = []
-            
-            for j, J in zip(range(model_shape[1]), range(1,model_shape[1])):
-                
-                
                 Zij = self.perl_array[i][j]
                 ZIj = self.perl_array[I][j]
                 ZiJ = self.perl_array[i][J]
                 ZIJ = self.perl_array[I][J]
 
-                Z3 = self.perl_array[I+1][j]
-                Z4 = self.perl_array[I+1][J]
+                Zi3j = self.perl_array[I+1][j]
+                Zi3J = self.perl_array[I+1][J]
 
-                #shaders
-                rednorm = lambda red, z1, z2: red - 10*(z1-z2)
-                greenorm = lambda green, z1, z2: green-34*(z1-z2)
-                bluenorm = lambda blue, z1, z2: blue-5*(z1-z2)
+                Z_list = [Zij, ZIj, ZiJ, ZIJ, Zi3j, Zi3J]
 
-                color_floats = lambda code: [cc/255 for cc in code]
-
-                sand_color = (240,230,140)
-
-                norm = lambda r,g,b, z1, z2: color_floats([rednorm(r, z1, z2), greenorm(g, z1, z2), bluenorm(b, z1, z2)])
-
-                color_code_ij = norm(*sand_color, Zij, ZIj) #light yellow with shader
-                color_code_Ij = norm(*sand_color, ZIj, Z3)
-                color_code_iJ = norm(*sand_color, ZiJ, ZIJ)
-                color_code_IJ = norm(*sand_color, ZIJ, Z4)
+                color_code = self.color_vertices_on_quad(i, j, I, J, Z_list)
+                color_code_ij, color_code_Ij, color_code_iJ, color_code_IJ = color_code
+                
 
                 if ( i - j )%2 == 0:
                     
@@ -207,6 +217,48 @@ class Model2:
 
                     self.batch.add(3, GL_TRIANGLES, None, ('v3f', (x + i, y + j, z + Zij, x + I, y + j, z + ZIj, x + I, y + J, z + ZIJ)),
                                                             color_coords_2)
+                    
+                    
+                    
+    
+    def __init__(self):
+        self.batch = pyglet.graphics.Batch()
+
+        self.model_shape = map_size
+
+        self.height = random.randint(int(map_size[0]/20), int(map_size[0]/10))
+        print (f"height was {self.height}")
+        self.depth = random.randint(2, int(map_size[0]/20)) 
+        self.amplitude = self.height + self.depth
+
+        x, y, z = 0,0,0
+
+        self.grass_height = 4
+        self.vertex_matrix = []
+        
+        ix, iy = int(x), int(y)
+        iX, iY = ix + self.model_shape[0], iy+self.model_shape[1]
+        
+        self.X_range = range(ix,iX)
+        self.Y_range = range(iy,iY)
+
+        self.perl_array = perlin_array((len(self.X_range)+1,
+                                        len(self.Y_range)+1),
+                                       amplitude=self.amplitude,
+                                       scale = random.randint(20, 80),
+                                       persistence = random.randint(15, 35)/100,
+                                       lacunarity = random.randint(28, 35)/10,
+                                       norm = render_mode)
+
+        self.real_altitude_norm()
+
+        self.height_mask_norm()
+
+        self.flatten_world_into_island()
+        self.deep_water_norm()
+        
+        self.create_world_vertex_color()
+        self.create_world_model(x, y, z) #x, y, z is lower left corner
                   
     def draw(self):
         self.batch.draw()
@@ -268,7 +320,7 @@ class Window(pyglet.window.Window):
             blob_hxY = self.model2.perl_array[ix][iY]
             blob_hXY = self.model2.perl_array[iX][iY]
 
-        except: return
+        except: return 0,0,x-ix, y-iy,0
 
         f_x = blob_hXy - blob_hxy
         f_y = blob_hxY - blob_hxy
@@ -279,17 +331,22 @@ class Window(pyglet.window.Window):
         return f_x, f_y, dx, dy, blob_hxy
 
     def set_player_model_on_land(self):
-        f_x1, f_y1, dx1, dy1, z = self.calculate_interpolation(self.player.player_model.x, self.player.player_model.y)
-        f_x2, f_y2, dx2, dy2, z = self.calculate_interpolation(self.player.player_model.x + 1, self.player.player_model.y)
+        f_x1, f_y1, dx1, dy1, z = self.calculate_interpolation(self.player.player_model.x+.5, self.player.player_model.y)
+        f_x2, f_y2, dx2, dy2, z = self.calculate_interpolation(self.player.player_model.x + .5, self.player.player_model.y)
 
         left_foot_z = f_x1*dx1 + f_y1*dy1 + z
         right_foot_z = f_x1*dx2 + f_y1*dy2 + z #use different dx an dy for left foot but same derivatives to hopefully reduce bounce
 
-        self.player.player_model.z = max(left_foot_z, right_foot_z, self.player.player_model.swim_cutoff)
+        new_z = max(left_foot_z, right_foot_z, self.player.player_model.swim_cutoff)
+        if self.player.player_model.z < new_z:
+            self.player.player_model.z = (new_z + 2*self.player.player_model.z)/3
+        else:
+            dz = .08
+            self.player.player_model.z -= dz
 
     def is_swimming(self):
         
-        if self.player.player_model.z < -self.player.player_model.swim_depth:
+        if self.player.player_model.z < -self.player.player_model.swim_depth + sea_level:
             self.player.swim_state = True
         else: self.player.swim_state = False
 
@@ -390,6 +447,16 @@ class Player:
                 self.world_coords[1] += walking_velocity[self.moving][1]
                 self.player_model.x += walking_velocity[self.moving][0]
                 self.player_model.y += walking_velocity[self.moving][1]
+
+        if self.world_coords[2] < self.player_model.z + camera_altitude or self.world_coords[2] > self.player_model.z + camera_altitude + camera_headroom:
+            new_coord0 = (99*self.world_coords[2] + self.player_model.z + camera_altitude)/100            
+            self.position[2] += new_coord0 - self.world_coords[2]
+            
+            self.world_coords[2] = new_coord0
+            
+        
+            
+            
 
     def update_sprite(self, anim_index):
         if self.moving is not None and not self.swim_state:
