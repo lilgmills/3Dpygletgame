@@ -12,6 +12,8 @@ from pyglet.window import key
 from perlin_noise import *
 import random
 
+map_size = (250, 250)
+
 background = [122, 209, 233, 255]
 bg_floats = [bg/255 for bg in background]
 
@@ -30,39 +32,52 @@ sprite_matrix = [[sprite_file(x) for x in [9, 10, 11, 10]],
                  [sprite_file(x) for x in [3, 4, 5, 4]],
                  [sprite_file(x) for x in [0, 1, 2, 1]]]
 
-map_size = (550, 550)
 
-base_grey = (200,200,200)
+
+ocean_color = [0.2,0.1,0.88]
+
+base_grey = (150,150,150)
 sand_color = (240,230,140)
-grass_green = (37.6, 150.2, 22)
+grass_color = (37.6, 150.2, 22)
 dirt_color = (210,105,30)
 
 render_mode = "standard"
 
-fov = 75
+fov = 45
 camera_lookdown_angle = 25
 camera_headroom = 5
 buffer_dist = 0.5 # creates a stable range of z values where the camra or player model does not need to be moved
-camera_vel = .115
+camera_vel = .155
 camera_altitude = 20
 camera_distance = camera_altitude/math.tan(camera_lookdown_angle/180*math.pi)
 
-sea_level = 2
+sea_level = 0.5
 
-player_start_pos = (.5*map_size[0], .33*map_size[1], camera_altitude)
+player_start_pos = (.5*map_size[0], .25*map_size[1], camera_altitude)
 
 SQRT2 = math.sqrt(2)
-print(SQRT2)
-walking_velocity = [[-camera_vel, 0],
-                    [0, -camera_vel],
-                    [camera_vel, 0],
-                    [0, camera_vel],
-                    [-SQRT2/2 * camera_vel, -SQRT2/2 * camera_vel],
-                    [SQRT2/2 * camera_vel, -SQRT2/2 * camera_vel],
-                    [SQRT2/2 * camera_vel, SQRT2/2 * camera_vel],
-                    [-SQRT2/2 * camera_vel, SQRT2/2 * camera_vel]]
 
-swimming_velocity = [[vel[0]*.7, vel[1]*.7] for vel in walking_velocity] 
+velocity_matrix = [[-1, 0, 0],
+                    [0, -1, 0],
+                    [1, 0, 0],
+                    [0, 1, 0],
+                    [-SQRT2/2 * 1, -SQRT2/2 * 1, 0],
+                    [SQRT2/2 * 1, -SQRT2/2 * 1, 0],
+                    [SQRT2/2 * 1, SQRT2/2 * 1, 0],
+                    [-SQRT2/2 * 1, SQRT2/2 * 1, 0]]
+
+velocity_matrix = np.asarray(velocity_matrix)
+
+walking_velocity = [[-camera_vel, 0, 0],
+                    [0, -camera_vel, 0],
+                    [camera_vel, 0, 0],
+                    [0, camera_vel, 0],
+                    [-SQRT2/2 * camera_vel, -SQRT2/2 * camera_vel, 0],
+                    [SQRT2/2 * camera_vel, -SQRT2/2 * camera_vel, 0],
+                    [SQRT2/2 * camera_vel, SQRT2/2 * camera_vel, 0],
+                    [-SQRT2/2 * camera_vel, SQRT2/2 * camera_vel, 0]]
+
+swimming_velocity = [[vel[0]*.7, vel[1]*.7, 0] for vel in walking_velocity] 
 
 class Player_Model:
     def get_texture(self, file):
@@ -121,15 +136,15 @@ class Model2:
         high_perl_array = perlin_array((len(self.X_range)+1,
                                         len(self.Y_range)+1),
                                         amplitude=self.amplitude,
-                                        scale = self.model_shape[0]/4,
-                                        persistence = 0.2,
-                                        lacunarity = 1.6,
+                                        scale = min(self.model_shape[0], self.model_shape[1])/4,
+                                        persistence = 0.3,
+                                        lacunarity = 2.5,
                                         norm = "normalized")
 
         for i, row in enumerate(self.perl_array):
             for j, zij in enumerate(row):
                 if self.perl_array[i][j] > 0:
-                    self.perl_array[i][j] = self.perl_array[i][j]*high_perl_array[i][j]
+                    self.perl_array[i][j] = self.perl_array[i][j]*high_perl_array[i][j]*1.7
         
 
         
@@ -137,24 +152,36 @@ class Model2:
     def deep_water_norm(self):
         for i, row in enumerate(self.perl_array):
             for j, zij in enumerate(row):
-                if zij < -0.2:
-                    self.perl_array[i][j] = -1  #sorrys
-                elif zij < 0:
-                    self.perl_array[i][j] = -0.6
+                if zij < sea_level -0.1:
+                    self.perl_array[i][j] = (self.perl_array[i][j] - sea_level)*2 + sea_level
 
     def flatten_world_into_island(self):
-        island_norm = lambda x, y: math.exp(-((x - self.model_shape[0]/2))**2/(self.model_shape[0]/3)**2 -((y - self.model_shape[1]/2))**2/(self.model_shape[0]/3)**2 )
+        island_norm = lambda x, y: math.exp(-((x - self.model_shape[0]/2))**2/(self.model_shape[0]/3.5)**2 -((y - self.model_shape[1]/2))**2/(self.model_shape[1]/3.5)**2 )
         for i,row in enumerate(self.perl_array):
             for j, z in enumerate(row):
-                if self.perl_array[i][j] > 0 :
-                    self.perl_array[i][j] = self.perl_array[i][j]*island_norm(i,j) - 2
+                if self.perl_array[i][j] > sea_level - 0.5:
+                    self.perl_array[i][j] = self.perl_array[i][j]*min(1.4*island_norm(i,j), self.height + 2) - 0.2
 
-    def lerp(self, x, y, index, grades):
-        return (x*index + (y)*(grades-index))/grades
+    def lerp(self, color1, color2, index, grades):
+        lerp = []
+        for x, y in zip(color1, color2):
+            lerp.append((y*index + (x)*(grades-index))/grades)
+        return lerp
 
     def create_world_vertex_color(self):
+        for i in range(self.model_shape[0] + 1):
+            new_vertex_color_row = []
+            for j in range(self.model_shape[1] + 1):
+                if self.perl_array[i][j] < self.grass_height:
+                    color = self.lerp(sand_color, base_grey, min(self.perl_array[i][j] , 2), 2)
 
-        pass
+                elif self.perl_array[i][j] > self.grass_height:
+                    grades = 2
+                    color = self.lerp(base_grey, grass_color, min(self.perl_array[i][j] - (self.grass_height), grades), grades)
+                else:
+                    color = base_grey
+                new_vertex_color_row.append(color)
+            self.vertex_color_matrix.append(new_vertex_color_row)
 
     def color_vertices_on_quad(self, i, j, I, J, Z_list):
 
@@ -170,7 +197,7 @@ class Model2:
 
         norm = lambda r,g,b, z1, z2: color_floats([rednorm(r, z1, z2), greenorm(g, z1, z2), bluenorm(b, z1, z2)])
 
-        color1, color2, color3, color4 = base_grey, base_grey, base_grey, base_grey
+        color1, color2, color3, color4 = self.vertex_color_matrix[i][j], self.vertex_color_matrix[I][j], self.vertex_color_matrix[i][J], self.vertex_color_matrix[I][J] 
         color_code_ij = norm(*color1, Zij, ZIj) #light yellow with shader
         color_code_Ij = norm(*color2, ZIj, Zi3j)
         color_code_iJ = norm(*color3, ZiJ, ZIJ)
@@ -219,22 +246,21 @@ class Model2:
                                                             color_coords_2)
                     
                     
-                    
-    
     def __init__(self):
         self.batch = pyglet.graphics.Batch()
 
         self.model_shape = map_size
 
         self.height = random.randint(int(map_size[0]/20), int(map_size[0]/10))
-        print (f"height was {self.height}")
-        self.depth = random.randint(2, int(map_size[0]/20)) 
+        
+        self.depth = random.randint(int(map_size[0]/40), int(map_size[0]/20))
+        print (f"height was {self.height}, depth was {self.depth}")
         self.amplitude = self.height + self.depth
 
         x, y, z = 0,0,0
 
-        self.grass_height = 4
-        self.vertex_matrix = []
+        self.grass_height = sea_level + 1
+        self.vertex_color_matrix = []
         
         ix, iy = int(x), int(y)
         iX, iY = ix + self.model_shape[0], iy+self.model_shape[1]
@@ -245,7 +271,8 @@ class Model2:
         self.perl_array = perlin_array((len(self.X_range)+1,
                                         len(self.Y_range)+1),
                                        amplitude=self.amplitude,
-                                       scale = random.randint(20, 80),
+                                       scale = random.randint(self.model_shape[0]//10, self.model_shape[0]//2),
+                                       octaves = random.randint(4, 5),
                                        persistence = random.randint(15, 35)/100,
                                        lacunarity = random.randint(28, 35)/10,
                                        norm = render_mode)
@@ -285,7 +312,7 @@ class Model:
         S, T = 1.0, 1.0
         tex_coords = ('t2f', [s, t, S, t, S, T, s, T])
 
-        color_coords = ('c3f', [0.2,0.1,0.88]*2 + [1,1,1]*2)
+        color_coords = ('c3f', ocean_color*2 + [1,1,1]*2)
 
         self.batch.add(4, GL_QUADS, None, ('v3f', (x, y, z, X, y, z, X, Y, z, x, Y, z)),
                        color_coords)
@@ -297,16 +324,47 @@ class Model:
     def draw(self):
         self.batch.draw()
 
-class Window(pyglet.window.Window):
-    def Projection(self): glMatrixMode(GL_PROJECTION); glLoadIdentity()
-    def Model(self): glMatrixMode(GL_MODELVIEW); glLoadIdentity()
+class LogicState:
+    def __init__(self):
+        self.model = Model()
+        self.model2 = Model2()
 
-    def set2d(self): self.Projection(); gluOrtho2D(0, self.width, 0, self.height); self.Model()
-    
-    def set3d(self):
-        self.Projection()
-        gluPerspective(fov,self.width/self.height,0.05, 1000) #min and max render distance
-        self.Model()
+        self.player = Player()
+
+        self.anim_frame_counter = 0
+        self.anim_skip_len = 5
+        self.anim_index = 0
+
+    def update(self, dt, keys):
+        self.player.update(dt, keys)
+        self.set_player_model_on_land()
+        self.set_camera_follow_player()
+        self.is_swimming()
+        self.player.update_movement()
+
+    def draw(self):
+        self.player.update_sprite(self.anim_index)
+        
+        glTranslatef(*[-x for x in self.player.position])
+
+        glTranslatef(*[-x for x in self.player.camera_position])
+       
+        self.model.draw()
+        self.model2.draw()
+        self.player.player_model.draw()
+
+        self.player.position = [0,0,0]
+        self.player.rotation = [0,0]
+        self.player.camera_position = [0,0,0]
+
+        self.frame_counter()
+
+    def frame_counter(self):
+        self.anim_frame_counter+=1
+
+        if self.anim_frame_counter == self.anim_skip_len:
+            self.anim_index = (self.anim_index + 1)%4
+            self.anim_frame_counter = 0
 
     def calculate_interpolation(self, x, y):
 
@@ -338,17 +396,46 @@ class Window(pyglet.window.Window):
         right_foot_z = f_x1*dx2 + f_y1*dy2 + z #use different dx an dy for left foot but same derivatives to hopefully reduce bounce
 
         new_z = max(left_foot_z, right_foot_z, self.player.player_model.swim_cutoff)
+        
         if self.player.player_model.z < new_z:
-            self.player.player_model.z = (new_z + 2*self.player.player_model.z)/3
-        else:
-            dz = .08
-            self.player.player_model.z -= dz
+            self.player.falling = False
+            self.player.player_model.z = new_z
+
+        elif self.player.player_model.z < new_z +.1:
+            self.player.falling = False
+            self.player.player_model.z = new_z
+
+        else: self.player.falling = True
+
+    def set_camera_follow_player(self):
+        if self.player.world_coords[2] < self.player.player_model.z + camera_altitude - buffer_dist:
+            self.player.camera_position[2] += .03
+            self.player.world_coords[2] += .03
+            
+        elif self.player.world_coords[2] > self.player.player_model.z + camera_altitude + buffer_dist:
+            
+            self.player.camera_position[2] += -.03
+            self.player.world_coords[2] += -.03
+            
+            
+       
 
     def is_swimming(self):
         
         if self.player.player_model.z < -self.player.player_model.swim_depth + sea_level:
             self.player.swim_state = True
         else: self.player.swim_state = False
+
+class Window(pyglet.window.Window):
+    def Projection(self): glMatrixMode(GL_PROJECTION); glLoadIdentity()
+    def Model(self): glMatrixMode(GL_MODELVIEW); glLoadIdentity()
+
+    def set2d(self): self.Projection(); gluOrtho2D(0, self.width, 0, self.height); self.Model()
+    
+    def set3d(self):
+        self.Projection()
+        gluPerspective(fov,self.width/self.height,0.05, 1000) #min and max render distance
+        self.Model()
 
     def setLock(self,state): self.lock = state; self.set_exclusive_mouse(state)
     lock = False; mouse_lock = property(lambda self:self.lock, setLock)
@@ -360,58 +447,24 @@ class Window(pyglet.window.Window):
         self.keys = key.KeyStateHandler()
         self.push_handlers(self.keys)
         pyglet.clock.schedule(self.update)
+
+        self.State = LogicState()
              
-        self.model = Model()
-        self.model2 = Model2()
-
-        self.player = Player()
-        
         self.set3d()
-
-        self.anim_frame_counter = 0
-        self.anim_skip_len = 5
-        self.anim_index = 0
         
         glRotatef(camera_lookdown_angle-90,1,0,0)
         glTranslatef(*[-x for x in player_start_pos])
-
-        
-        
+ 
     def on_key_press(self,KEY,MOD):
-        if KEY == key.ESCAPE: self.mouse_lock = not self.mouse_lock
+        if KEY == key.ESCAPE or KEY == key.ENTER: self.mouse_lock = not self.mouse_lock
     
     def update(self, dt):
-        self.player.update(dt, self.keys)
-        self.player.update_movement()
-        
-        #self.set_player_on_land()
-        self.set_player_model_on_land()
-        self.is_swimming()
-
-    def frame_counter(self):
-        self.anim_frame_counter+=1
-
-        if self.anim_frame_counter == self.anim_skip_len:
-            self.anim_index = (self.anim_index + 1)%4
-            self.anim_frame_counter = 0
+        self.State.update(dt, self.keys)
         
     def on_draw(self):
         self.clear()
-
-        self.player.update_sprite(self.anim_index)
+        self.State.draw()
         
-        glTranslatef(*[-x for x in self.player.position])
-       
-        self.model.draw()
-        self.model2.draw()
-        self.player.player_model.draw()
-
-        self.player.position = [0,0,0]
-        self.player.rotation = [0,0]
-
-        self.frame_counter()
-        
-    
     def on_resize(self, width, height):
         self.set_size(width, math.floor(width*ratio))
         glViewport(0, 0, width, math.floor(width*ratio))
@@ -420,44 +473,87 @@ class Window(pyglet.window.Window):
 class Player:
     def __init__(self):
         self.position = [0,0,0]
-        
+        self.camera_position = [0,0,0]
+    
         self.rotation = [0,0] #the "player" position is always zero (because we are always at the center of our world)
         self.world_coords = list(player_start_pos[:])
         self.world_rot = [0, -camera_lookdown_angle]
 
+        self.velocity_matrix = np.zeros(velocity_matrix.shape)
+
         self.player_model = Player_Model()
         self.direction = UP
         self.swim_state = False
+        self.falling = True
+        self.on_land = False
+        self.jumping = False
 
         self.moving = None
+        self.speedup = None
+        self.slowdown = None
+
+        self.speed_up_flag = False
+        self.slow_down_flag = False
+        self.stop_flag = True
+
+        self.falling_velocity = 0
+
+    def update_velocity(self, vel_norm):
+        self.velocity_matrix = np.add(self.velocity_matrix, [[v*vel_norm for v in vel]for vel in velocity_matrix])
+
+    def update_position(self, velocity, moving):
+        self.position[0] += velocity[moving][0]
+        self.position[1] += velocity[moving][1]
+        self.world_coords[0] += velocity[moving][0]
+        self.world_coords[1] += velocity[moving][1]
+        self.player_model.x += velocity[moving][0]
+        self.player_model.y += velocity[moving][1]
+
+    def update_vertical(self, vel):
+        self.player_model.z += vel
+
+    def vel_norm(self):
+        return -self.velocity_matrix[0][0]
+
+    def set_stop_flag(self):
+        if self.vel_norm() < .0001:
+            self.stop_flag = True
 
     def update_movement(self):
+                
         if self.moving is not None:
+            if self.speedup is not None:
+                self.update_velocity(.01)
+                self.update_position(self.velocity_matrix, self.speedup)
+
+            elif self.slow_down_flag:
+                
+                self.set_stop_flag()
+                
+                if self.stop_flag:
+                    self.stop_flag = False
+                    self.moving = None
+                    self.velocity_matrix = np.zeros(velocity_matrix.shape)
+                    
+                else:
+                    self.update_velocity(-.00001)
+                    self.update_position(self.velocity_matrix, self.slowdown)
+                
             if self.swim_state:
-                self.position[0] += swimming_velocity[self.moving][0]
-                self.position[1] += swimming_velocity[self.moving][1]
-                self.world_coords[0] += swimming_velocity[self.moving][0]
-                self.world_coords[1] += swimming_velocity[self.moving][1]
-                self.player_model.x += swimming_velocity[self.moving][0]
-                self.player_model.y += swimming_velocity[self.moving][1]
+                self.update_position(swimming_velocity, self.moving)
             else:
-                self.position[0] += walking_velocity[self.moving][0]
-                self.position[1] += walking_velocity[self.moving][1]
-                self.world_coords[0] += walking_velocity[self.moving][0]
-                self.world_coords[1] += walking_velocity[self.moving][1]
-                self.player_model.x += walking_velocity[self.moving][0]
-                self.player_model.y += walking_velocity[self.moving][1]
+                self.update_position(walking_velocity, self.moving)
+            
 
-        if self.world_coords[2] < self.player_model.z + camera_altitude or self.world_coords[2] > self.player_model.z + camera_altitude + camera_headroom:
-            new_coord0 = (99*self.world_coords[2] + self.player_model.z + camera_altitude)/100            
-            self.position[2] += new_coord0 - self.world_coords[2]
-            
-            self.world_coords[2] = new_coord0
-            
+        if self.jumping:
+            self.falling_velocity = .175
+            self.jumping = False
+            self.falling = True
+
+        if self.falling:
+            self.fall()
+            self.update_vertical(self.falling_velocity)
         
-            
-            
-
     def update_sprite(self, anim_index):
         if self.moving is not None and not self.swim_state:
             self.player_model.ready_batch_to_draw(self.player_model.x,
@@ -470,8 +566,24 @@ class Player:
                                                   self.player_model.z,
                                                   file=base_sprite[self.direction])
 
+    def fall(self):
+        self.falling_velocity += -.01
+
+    def find_reverse_direction(self, speedup):
+        if speedup == LEFT: return RIGHT
+        if speedup == DOWN: return UP
+        if speedup == RIGHT: return LEFT
+        if speedup == UP: return DOWN
+        if speedup == DOWNLEFT: return UPRIGHT
+        if speedup == DOWNRIGHT: return UPLEFT
+        if speedup == UPRIGHT: return DOWNLEFT
+        if speedup == UPLEFT: return DOWNRIGHT
+
     def update(self,dt,keys):
 
+        if keys[key.L] and not self.falling and not self.swim_state:
+            self.jumping = True
+    
         if keys[key.A]:
             if keys[key.S]:
                 self.moving = DOWNLEFT
@@ -500,5 +612,7 @@ class Player:
         elif keys[key.W]: self.moving = self.direction = UP
 
         else: self.moving = None
+
+        
 
 
