@@ -13,8 +13,10 @@ def main():
     glClearColor(0.6,0.71,1,1)
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_CULL_FACE)
-    glEnable(GL_BLEND)
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    #glEnable(GL_BLEND)
+    #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glEnable(GL_ALPHA_TEST);
+    glAlphaFunc(GL_GREATER,0.5)
     pyglet.app.run()
     #main_guy = Player()
     #State = 25DLogState(main_guy, screen)
