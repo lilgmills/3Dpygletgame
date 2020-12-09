@@ -4,15 +4,17 @@ from math import floor, ceil
 import random
 
 def perlin_array(shape = (1200, 600), amplitude = 1,
-			scale = 30,octaves = random.randint(3, 5),
-                        persistence = random.random()*.35 +.25,
-                        lacunarity= random.random()*2 + 1.5, 
+			scale = 30, octaves = random.randint(3, 5),
+                        persistence = .35,
+                        lacunarity= 2.5, 
 			seed = None, norm = "standard"):
 
+    
+       
 
-
-    seed = np.random.randint(0, 100)
-    print("seed was se{}_sc{}_o{}_p{}_L{}".format(seed, scale, octaves, round(persistence,2), round(lacunarity, 1)))
+    if seed is None:
+        seed = random.randint(0, 100)
+    print(">>> seed was se{}_sc{}_o{}_p{}_L{}".format(seed, scale, octaves, round(persistence,2), round(lacunarity, 1)))
 
     arr = np.zeros(shape)
     for i in range(shape[0]):
@@ -34,7 +36,7 @@ def perlin_array(shape = (1200, 600), amplitude = 1,
         
     if norm == "standard":
         
-        norm = lambda x: (x-min_arr)/(max_arr - min_arr)*amplitude
+        norm = lambda x: (x-min_arr)/(max_arr - min_arr)*(amplitude)
         
 
     if norm == "ziggurat":

@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import filedialog
 import pyglet
 from pyglet.gl import *
-from Logicstate import *
+from Window import *
 
 def main():
     window = Window(width = size[0], height =size[1], caption = "Wizard", resizable=True)
