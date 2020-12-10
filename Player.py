@@ -43,7 +43,7 @@ class Player_Model:
         self.player_width = 0.7
         self.player_height = 1.2*self.player_width
 
-        self.swim_depth = 0.5 *self.player_height* math.cos(camera_lookdown_angle/180*math.pi)
+        self.swim_depth = 0.55 *self.player_height* math.cos(camera_lookdown_angle/180*math.pi)
         self.foot_room = 0.1 *self.player_height* math.cos(camera_lookdown_angle/180*math.pi)
 
         self.swim_cutoff = sea_level - self.swim_depth - self.foot_room
@@ -60,7 +60,8 @@ class Player:
         self.world_coords = list(player_start_pos[:])
         self.world_rot = [0, -camera_lookdown_angle]
 
-        self.velocity_matrix = np.zeros(velocity_matrix.shape)
+        self.velocity_matrix = walking_velocity
+        self.velocity = [0,0,0]
 
         self.player_model = Player_Model()
         self.direction = UP
@@ -73,6 +74,8 @@ class Player:
         self.speedup = None
         self.slowdown = None
 
+        self.was_moving = None
+
         self.speed_up_flag = False
         self.slow_down_flag = False
         self.stop_flag = True
@@ -83,6 +86,7 @@ class Player:
         self.velocity_matrix = np.add(self.velocity_matrix, [[v*vel_norm for v in vel]for vel in velocity_matrix])
 
     def update_position(self, velocity, moving):
+        
         self.position[0] += velocity[moving][0]
         self.position[1] += velocity[moving][1]
         self.world_coords[0] += velocity[moving][0]
@@ -94,7 +98,7 @@ class Player:
         self.player_model.z += vel
 
     def vel_norm(self):
-        return -self.velocity_matrix[0][0]
+        return abs(self.velocity_matrix[0][0])
 
     def update_movement(self):
                 
@@ -103,7 +107,19 @@ class Player:
             if self.swim_state:
                 self.update_position(swimming_velocity, self.moving)
             else:
-                self.update_position(walking_velocity, self.moving)
+                self.update_position(self.velocity_matrix, self.moving)
+            if self.vel_norm() < .17:
+                vel_norm = .004
+                self.update_velocity(vel_norm)
+                
+        elif self.was_moving is not None and self.vel_norm() > 0:
+            vel_norm = -.0045
+            self.update_velocity(vel_norm)
+            self.update_position(self.velocity_matrix, self.was_moving)
+
+            if self.vel_norm() < 0.01:
+                self.was_moving = None
+                self.velocity_matrix = walking_velocity
             
 
         if self.jumping:
@@ -116,7 +132,7 @@ class Player:
             self.update_vertical(self.falling_velocity)
         
     def update_sprite(self, anim_index):
-        if self.moving is not None and not self.swim_state:
+        if (self.moving is not None or self.was_moving is not None) and not self.swim_state:
             self.player_model.ready_batch_to_draw(self.player_model.x,
                                                   self.player_model.y,
                                                   self.player_model.z,
@@ -173,4 +189,8 @@ class Player:
         elif keys[key.W]: self.moving = self.direction = UP
 
         else: self.moving = None
+
+        if self.moving is not None: self.was_moving = self.moving
+
+        
 

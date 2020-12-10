@@ -37,7 +37,13 @@ class LogicState:
 
         random.seed(0)
 
-        self.world_model = World_Model(seed)
+        x = self.island_location[0]
+        y = self.island_location[1]
+        self.spawn_cache = [(x, y)]
+
+        self.gem_spawn= True
+
+        self.world_model = World_Model(seed, self.gem_spawn)
 
         self.cull_distance = 40
         self.cull_frame_counter = 0
@@ -46,7 +52,7 @@ class LogicState:
         self.frame_counter_int = 0
         
         self.anim_frame_counter = 0
-        self.anim_skip_len = 3
+        self.anim_skip_len = 5
         self.anim_index = 0
 
    
@@ -56,17 +62,24 @@ class LogicState:
 
     def update(self, dt, keys):
         
-        
         self.player.update(dt, keys)
         #self.animate_ocean(dt)
         self.set_player_model_on_land()
         self.set_camera_follow_player()
         self.is_swimming()
-
-##        if self.cull_frame_counter % self.cull_timing_skip == 0:
-##            self.get_on_screen_sprites()
         
-        if self.frame_counter_int % 5 == 0:
+        
+        if self.frame_counter_int % 16 == 0:
+            x = self.world_model.enemy.x
+            x2 = self.world_model.enemy2.x
+            y = self.world_model.enemy.y
+            y2 = self.world_model.enemy2.y
+            perlin_z = self.world_model.perl_array[int(round(x))][int(round(y))]
+            perlin_z2 = self.world_model.perl_array[int(round(x2))][int(round(y2))]
+            self.world_model.enemy.update(dt, self.player.player_model.x, self.player.player_model.y, perlin_z)
+            self.world_model.enemy2.update(dt, self.player.player_model.x, self.player.player_model.y, perlin_z2)
+        
+        if self.frame_counter_int % 5 == 0 and self.gem_spawn:
             self.touch_ruby()
         
         self.player.update_movement()
@@ -74,16 +87,20 @@ class LogicState:
 
     def touch_ruby(self):
         tmp_ruby_holder = []
-        for ruby in self.world_model.decoration_model.ruby_model.ruby_dec_holder:
+        update = False
+        for ruby in self.world_model.ruby_model.ruby_dec_holder:
             label, x, y, z, w, h = ruby
 
             if abs(x - self.player.player_model.x) < w*3/4 and abs(y - self.player.player_model.y) < w*3/4:
-                pass
+                update = True
             else: tmp_ruby_holder.append(ruby)
 
-        self.world_model.decoration_model.ruby_model.ruby_dec_holder = tmp_ruby_holder
+        if update:
+            self.world_model.ruby_model.ruby_dec_holder = tmp_ruby_holder
+            self.world_model.ruby_model.ruby_draw()
+            
         
-        self.world_model.decoration_model.ruby_model.ruby_draw()
+        
                 
 
     def go_off_screen(self):
@@ -118,9 +135,25 @@ class LogicState:
             self.re_create_world()
 
     def re_create_world(self):
+        tmp_gem_spawn = True
+        for island in self.spawn_cache:
+            x = self.island_location[0]
+            y = self.island_location[1]
+            if island == (x, y):
+                tmp_gem_spawn = False
+
+        if tmp_gem_spawn:
+            self.spawn_cache.append((x, y))
+
+            print(self.spawn_cache)
+
+        self.gem_spawn = tmp_gem_spawn
+                
+
         seed = self.create_seed()
         
-        self.world_model = World_Model(seed)
+        self.world_model = World_Model(seed, self.gem_spawn)
+                
         
         
 
@@ -137,8 +170,13 @@ class LogicState:
         self.world_model.draw()
         self.player.player_model.draw()
 
-        self.world_model.decoration_model.draw()
-        self.world_model.decoration_model.ruby_model.draw()
+        
+        if self.gem_spawn:
+            self.world_model.ruby_model.draw()
+
+        self.world_model.enemy.draw()
+        self.world_model.enemy2.draw()
+
 
         self.player.position = [0,0,0]
         self.player.rotation = [0,0]

@@ -51,7 +51,7 @@ render_mode = "standard"
 camera_lookdown_angle = 35
 camera_headroom = 5
 buffer_dist = 0.5 # creates a stable range of z values where the camra or player model does not need to be moved
-camera_vel = .2#.095
+camera_vel = .05
 camera_altitude = 28
 camera_distance = camera_altitude/math.tan(camera_lookdown_angle/180*math.pi)
 
@@ -81,4 +81,4 @@ walking_velocity = [[-camera_vel, 0, 0],
                     [SQRT2/2 * camera_vel, SQRT2/2 * camera_vel, 0],
                     [-SQRT2/2 * camera_vel, SQRT2/2 * camera_vel, 0]]
 
-swimming_velocity = [[vel[0]*.7, vel[1]*.7, 0] for vel in walking_velocity]
+swimming_velocity = [[vel[0]*1.7, vel[1]*1.7, 0] for vel in walking_velocity]

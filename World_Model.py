@@ -115,6 +115,12 @@ class World_Model:
             lerp.append((y*index + (x)*(grades-index))/grades)
         return lerp
 
+    def diffuse_shader(self, color):
+        ambient_strength = 1.2
+        ambient_color = [c*ambient_strength for c in color]
+
+        return ambient_color
+
     def create_world_vertex_color(self):
         grass_color = (37.6, 110, 22)
         for i in range(self.model_shape[0] + 1):
@@ -135,6 +141,8 @@ class World_Model:
                         color = grass_color
                     grades = 2
                     color = self.lerp(dirt_color, color, min(self.perl_array[i][j] - (self.grass_height), grades), grades)
+
+                color = self.diffuse_shader(color)
                 new_vertex_color_row.append(color)
             self.vertex_color_matrix.append(new_vertex_color_row)
 
@@ -201,8 +209,9 @@ class World_Model:
                     self.batch.add(3, GL_TRIANGLES, None, ('v3f', (x + i, y + j, z + Zij, x + I, y + j, z + ZIj, x + I, y + J, z + ZIJ)),
                                                             color_coords_2)
 
-    def create_decorations(self):
-        number_of_textures = 3
+    def create_decorations(self, gem_spawn):
+        
+        number_of_textures = 2
         
         for i in range(self.model_shape[0] + 1):
             for j in range(self.model_shape[1] + 1):
@@ -212,14 +221,15 @@ class World_Model:
                     if z > sea_level:
                         grassy_val = self.decoration_model.grass_dec_perl[i][j]
                         leafy_val = self.decoration_model.leafy_dec_perl[i][j]
-                        ruby_val = self.decoration_model.ruby_model.ruby_dec_perl[i][j]
+                        
+                            
                         fix_prob = random.random()
-                        small_prob = 0.02 * number_of_textures
-                        ruby_prob = 0.01
+                        small_prob = 0.015 * number_of_textures
+                        
 
                         if fix_prob < small_prob:
                             if grassy_val == 4 and leafy_val == 2:
-                                if fix_prob < 0.02:
+                                if fix_prob < 0.015:
                                     w = random.uniform(1, 3)
                                     h = random.uniform(0.75, 4)
                                     self.decoration_model.dec_holder.append(("grass",i, j, z, w, h))
@@ -237,13 +247,24 @@ class World_Model:
                                 w = random.uniform(1, 2)
                                 h = random.uniform(1, 4)
                                 self.decoration_model.dec_holder.append(("leafy",i, j, z, w, h))
-
-                            elif ruby_val == 1 and fix_prob < ruby_prob:
                                 
-                                self.decoration_model.ruby_model.ruby_dec_holder.append(("ruby", i, j, z, 1.5, 2))
+        for i in range(self.model_shape[0] + 1):
+            for j in range(self.model_shape[1] + 1):
+                if gem_spawn:
+                    
+                    z = self.perl_array[i][j]
+                    if z > sea_level:
+                        
+                        if len(self.ruby_model.ruby_dec_holder) < self.ruby_model.texture_max:
+                            ruby_val = self.ruby_model.ruby_dec_perl[i][j]
+                            
+                            fix_prob = random.random()
+                            ruby_prob = 0.01
+                            if ruby_val == 1 and fix_prob < ruby_prob:
+                                self.ruby_model.ruby_dec_holder.append(("ruby", i, j, z, 1.5, 2))
 
                         
-    def __init__(self, seed):
+    def __init__(self, seed, gem_spawn):
         self.batch = pyglet.graphics.Batch()
         
         self.model_shape = map_size
@@ -303,7 +324,7 @@ class World_Model:
                                        lacunarity = .3,
                                        seed =seed, norm = "ternary")
         
-        self.decoration_model = Decoration_Model()
+        self.decoration_model = Decoration_Model(gem_spawn)
 
         print("decoration array")
         self.decoration_model.grass_dec_perl = perlin_array((len(self.X_range)+1, len(self.Y_range)+1),
@@ -319,12 +340,16 @@ class World_Model:
                                                             octaves=4,
                                                             lacunarity = 3,
                                                             seed = seed, norm = "grade8")
+        if gem_spawn:
+            self.ruby_model = Ruby_Model()
+            
+            self.ruby_model.ruby_dec_perl = perlin_array((len(self.X_range)+1, len(self.Y_range)+1),
+                                                                scale = 50,
+                                                                octaves=4,
+                                                                lacunarity = 3,
+                                                                seed = seed, norm = "binary")
 
-        self.decoration_model.ruby_model.ruby_dec_perl = perlin_array((len(self.X_range)+1, len(self.Y_range)+1),
-                                                            scale = 50,
-                                                            octaves=4,
-                                                            lacunarity = 3,
-                                                            seed = seed, norm = "binary")
+            
 
 
         self.real_altitude_norm()
@@ -339,29 +364,20 @@ class World_Model:
         
         self.create_world_model(x, y, z) #x, y, z is lower left corner
 
-        self.create_decorations()
+        self.create_decorations(gem_spawn)
+        if gem_spawn:
+           self.ruby_model.ruby_draw()
         
-        self.decoration_model.ready_batch_to_draw(s = 0, t = 0, S = 1, T = 1)
-                  
-    def draw(self):
-        self.batch.draw()
+        self.ready_decoration_to_draw(s = 0, t = 0, S = 1, T = 1)
 
-class Decoration_Model:
-    def get_texture(self, file):
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
-        tex = pyglet.image.load(file).get_texture()
-        return pyglet.graphics.TextureGroup(tex)
+        self.enemy = Enemy(x = random.randint(0, world_size), y = random.randint(0, world_size))
+        self.enemy2 = Enemy(x = world_size/2 + 16, y = world_size/2 - 10, z = 7, w = 0.9, h = 3, file='sprites\\sprite workfile\\onua2.png')
 
-    def ready_batch_to_draw(self, s = .3, t = 0, S = .7, T = 1):
-
-        self.batch = pyglet.graphics.Batch()
+    def ready_decoration_to_draw(self, s = .3, t = 0, S = .7, T = 1):     
         
         tex_coords = ('t2f', [s, t, S, t, S, T, s, T])
 
-        for coord in self.on_screen_sprites:
+        for coord in self.decoration_model.dec_holder:
             
             label, x, y, z, w, h = coord
             if label == "grass":
@@ -385,10 +401,27 @@ class Decoration_Model:
 
             #self.batch.add(4, GL_QUADS,self.sprite,('v3f', (x, y, z, x, Y, z, x, Y, Z, x, y, Z)),tex_coords)
 
-    
-    def __init__(self):
+
+
         
-        self.texture_max = 35
+                  
+    def draw(self):
+        self.batch.draw()
+
+class Decoration_Model:
+    def get_texture(self, file):
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+        tex = pyglet.image.load(file).get_texture()
+        return pyglet.graphics.TextureGroup(tex)
+
+    def __init__(self, gem_spawn):
+
+        self.gem_spawn = gem_spawn
+        
+        self.texture_max = 20
         self.dec_holder = []
         
         self.on_screen_sprites = []
@@ -396,12 +429,6 @@ class Decoration_Model:
         
         self.grass_dec_perl = []
         self.leafy_dec_perl = []
-
-        self.ruby_model = Ruby_Model()
-        
-        
-    def draw(self):
-        self.batch.draw()
 
 
 class Ruby_Model:
@@ -415,9 +442,12 @@ class Ruby_Model:
 
     def __init__(self):
         self.texture_max = 10
-        self.ruby_dec_holder= []
         self.ruby_dec_perl = []
-        self.batch = pyglet.graphics.Batch()
+        self.ruby_dec_holder = []
+        
+
+        self.sin_const = math.sin(camera_lookdown_angle/180*math.pi)
+        self.cos_const = math.cos(camera_lookdown_angle/180*math.pi)
 
     def ruby_draw(self):
         self.batch = pyglet.graphics.Batch()
@@ -429,13 +459,80 @@ class Ruby_Model:
             self.sprite = self.get_texture(file)
 
             x = x - w /3
+            z = z + 0.15
 
-            X, Y, Z = x + w, y, z+h
+            X, Y, Z = x + w, y + h*self.sin_const, z+h*self.cos_const
 
             self.batch.add(4, GL_QUADS,self.sprite,('v3f', (x, y, z, X, y, z, X, Y, Z, x, Y, Z)),tex_coords)
 
     def draw(self):
         self.batch.draw()
+
+class Enemy:
+    def get_texture(self, file):
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+        tex = pyglet.image.load(file).get_texture()
+        return pyglet.graphics.TextureGroup(tex)
+    
+    def ready_batch_to_draw(self, s = 0, t = 0, S = 1, T = 1, file='sprites\\sprite workfile\\onua.png'):
+        
+        self.sprite = self.get_texture(file)
+
+        self.batch = pyglet.graphics.Batch()
+
+        tex_coords = ('t2f', [s, t, S, t, S, T, s, T])
+        x = self.x
+        y = self.y
+        z = self.z + 0.1
+        X, Y, Z = x + self.w, self.y + self.h* math.sin(camera_lookdown_angle/180*math.pi), z+self.h*math.cos(camera_lookdown_angle/180*math.pi), 
+
+        self.batch.add(4, GL_QUADS,self.sprite,('v3f', (x, y, z, X, y, z, X, Y, Z, x, Y, Z)),tex_coords)
+
+    def __init__(self, x = world_size/2, y = world_size/2, z = 6, w = 2, h = 2.4, file='sprites\\sprite workfile\\onua.png'):
+        self.file = file
+        self.start_x = x
+        self.start_y = y
+        self.start_z = z
+
+        self.osc_speed_z = random.randint(1, 4)
+        self.osc_speed_y = random.randint(1, 10)
+        self.osc_speed_x = random.randint(1, 10)
+
+        self.x = self.start_x
+        self.y = self.start_y
+        self.z = self.start_z
+        
+        self.t = 0
+        
+        self.w = w
+        self.h = h
+
+        self.ready_batch_to_draw(file=file)
+
+    def update(self, dt, player_x, player_y, perlin_z):
+        self.t += dt
+        self.z = perlin_z + 1.5+ math.sin(self.osc_speed_z*self.t)
+
+        
+        enemy_vel = .4
+        if self.x > player_x + 5*math.cos(self.osc_speed_x*self.t):
+            self.x -= .4
+        elif self.x < player_x + 5*math.cos(self.osc_speed_x*self.t):
+            self.x += .4
+        if self.y > player_y + 5*math.sin(self.osc_speed_y*self.t):
+            self.y -= .4
+        else: self.y += .4
+        
+        self.ready_batch_to_draw(file = self.file)
+
+    def draw(self):
+        
+        self.batch.draw()
+
+
 
 
 class Model:
