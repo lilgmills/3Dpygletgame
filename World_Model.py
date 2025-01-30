@@ -371,7 +371,7 @@ class World_Model:
         self.ready_decoration_to_draw(s = 0, t = 0, S = 1, T = 1)
 
         self.enemy = Enemy(x = random.randint(0, world_size), y = random.randint(0, world_size))
-        self.enemy2 = Enemy(x = world_size/2 + 16, y = world_size/2 - 10, z = 7, w = 0.9, h = 3, file='sprites\\sprite workfile\\onua2.png')
+        self.enemy2 = Enemy(x = world_size/2 + 16, y = world_size/2 - 10, z = 7, w = 0.9, h = 3, file='sprites\\sprite_workfile\\onua2.png')
 
     def ready_decoration_to_draw(self, s = .3, t = 0, S = .7, T = 1):     
         
@@ -381,9 +381,9 @@ class World_Model:
             
             label, x, y, z, w, h = coord
             if label == "grass":
-                file = 'sprites\\sprite workfile\\standing grass texture.png'
+                file = 'sprites\\sprite_workfile\\standing_grass_texture.png'
             elif label == "leafy":
-                file = "sprites\\sprite workfile\\leafy.png"
+                file = "sprites\\sprite_workfile\\leafy.png"
             
 
             self.sprite = self.get_texture(file)          
@@ -451,7 +451,7 @@ class Ruby_Model:
 
     def ruby_draw(self):
         self.batch = pyglet.graphics.Batch()
-        file = "sprites\\sprite workfile\\ruby_gem.png"
+        file = "sprites\\ruby_gem.png"
         s, S, t, T = 0,1,0,1
         tex_coords = ('t2f', [s, t, S, t, S, T, s, T])
         for ruby in self.ruby_dec_holder:
@@ -477,7 +477,7 @@ class Enemy:
         tex = pyglet.image.load(file).get_texture()
         return pyglet.graphics.TextureGroup(tex)
     
-    def ready_batch_to_draw(self, s = 0, t = 0, S = 1, T = 1, file='sprites\\sprite workfile\\onua.png'):
+    def ready_batch_to_draw(self, s = 0, t = 0, S = 1, T = 1, file='sprites\\sprite_workfile\\onua.png'):
         
         self.sprite = self.get_texture(file)
 
@@ -491,7 +491,7 @@ class Enemy:
 
         self.batch.add(4, GL_QUADS,self.sprite,('v3f', (x, y, z, X, y, z, X, Y, Z, x, Y, Z)),tex_coords)
 
-    def __init__(self, x = world_size/2, y = world_size/2, z = 6, w = 2, h = 2.4, file='sprites\\sprite workfile\\onua.png'):
+    def __init__(self, x = world_size/2, y = world_size/2, z = 6, w = 2, h = 2.4, file='sprites\\sprite_workfile\\onua.png'):
         self.file = file
         self.start_x = x
         self.start_y = y

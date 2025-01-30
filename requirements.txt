@@ -1,0 +1,6 @@
+multipledispatch==1.0.0
+noise==1.2.2
+numpy==2.2.2
+pillow==11.1.0
+pyglet==1.5.28
+pyrr==0.10.3
