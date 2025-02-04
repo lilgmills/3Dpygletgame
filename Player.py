@@ -56,7 +56,7 @@ class Player:
         self.position = [0,0,0]
         self.camera_position = [0,0,0]
     
-        self.rotation = [0,0] #the "player" position is always zero (because we are always at the center of our world)
+        self.rotation = [0,0] #the "player" position is always zero
         self.world_coords = list(player_start_pos[:])
         self.world_rot = [0, -camera_lookdown_angle]
 
